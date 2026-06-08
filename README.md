@@ -8,9 +8,6 @@ Bash/.bashrc                        -> bash runtime configuration file
 Init/init.c                         -> linix initialization script
 
 
-Linux/bzImage                       -> working 64-bit linux kernel
-
-
 Linux/.config                       -> linux compile configuration file
 
 
