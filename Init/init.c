@@ -16,50 +16,50 @@
 #include <errno.h>
 #include <termios.h>
 #include <sys/acl.h>
+#include <pwd.h>
 
 int main(void) {
-    // start user session
-    //
-    setsid();
-    setgid(0);
-    setuid(0);
-    // 2. Create Base Directories & Permissions
-    //
-    mkdir("/proc", 0555);
-    mkdir("/sys" , 0755);
-    mkdir("/dev" , 0755);
-    mkdir("/mnt" , 0755);
-    mkdir("/run" , 0755);
-    mkdir("/tmp" , 1777);
-    mkdir("/home", 0755);
-    mkdir("/boot", 0755);
+	// start user session
+    	//
+    	setsid();
+    	setresgid(0,0,0);	
+    	setresuid(0,0,0);	
+	// 2. Create Base Directories & Permissions
+    	//
+    	mkdir("/proc", 0555);
+    	mkdir("/sys" , 0755);
+    	mkdir("/dev" , 0755);
+    	mkdir("/mnt" , 0755);
+    	mkdir("/run" , 0755);
+    	mkdir("/tmp" , 1777);
+    	mkdir("/home", 0755);
+    	mkdir("/boot", 0755);
 
-    // 3. Mount Base Filesystems
-    //
-    mount("proc"    , "/proc", "proc"    , MS_NOSUID | MS_NOEXEC | MS_NODEV  , NULL);
-    mount("sysfs"   , "/sys" , "sysfs"   , MS_NOSUID | MS_NOEXEC | MS_NODEV  , NULL);
-    mount("devtmpfs", "/dev" , "devtmpfs", MS_NOSUID                         , NULL);
-    mount("tmpfs"   , "/mnt" , "tmpfs"   , MS_RELATIME                       , NULL);
-    mount("tmpfs"   , "/run" , "tmpfs"   , MS_NOSUID | MS_RELATIME | MS_NODEV, NULL);
-    mount("tmpfs"   , "/tmp" , "tmpfs"   , MS_NOSUID | MS_NODEV              , NULL);
-    
+    	// 3. Mount Base Filesystems
+    	//
+    	mount("proc"    , "/proc", "proc"    , MS_NOSUID | MS_NOEXEC | MS_NODEV  , NULL);
+    	mount("sysfs"   , "/sys" , "sysfs"   , MS_NOSUID | MS_NOEXEC | MS_NODEV  , NULL);
+    	mount("devtmpfs", "/dev" , "devtmpfs", MS_NOSUID                         , NULL);
+    	mount("tmpfs"   , "/mnt" , "tmpfs"   , MS_RELATIME                       , NULL);
+    	mount("tmpfs"   , "/run" , "tmpfs"   , MS_NOSUID | MS_RELATIME | MS_NODEV, NULL);
+    	mount("tmpfs"   , "/tmp" , "tmpfs"   , MS_NOSUID | MS_NODEV              , NULL);
 
-    // 4. Setup Dev Sub-directories & Sub-mounts
-    //
-    mkdir("/dev/pts", 0755);
-    mount("devpts", "/dev/pts", "devpts", MS_NOSUID | MS_NOEXEC, "gid=5,mode=620,ptmxmode=666");
-    mkdir("/dev/shm", 1777);
-    mount("tmpfs", "/dev/shm" , "tmpfs" , MS_NOSUID | MS_NODEV , NULL);
+    	// 4. Setup Dev Sub-directories & Sub-mounts
+    	//
+   	mkdir("/dev/pts", 0755);
+   	mount("devpts", "/dev/pts", "devpts", MS_NOSUID | MS_NOEXEC, "gid=5,mode=620,ptmxmode=666");
+    	mkdir("/dev/shm", 1777);
+    	mount("tmpfs", "/dev/shm" , "tmpfs" , MS_NOSUID | MS_NODEV , NULL);
 	
-    // 5. Create Base Symlinks
-    //
-    symlink("/proc/self/fd", "/dev/fd");
+    	// 5. Create Base Symlinks
+    	//
+    	symlink("/proc/self/fd", "/dev/fd");
     
-    // 6. Mount root partition
-    //
-    mount("/dev/sda3", "/mnt" , "ext4", MS_RELATIME, NULL);
-    mount("/dev/sda5", "/home", "ext4", MS_RELATIME, NULL);
-    mount("/dev/sda2", "/boot", "ext4", MS_RELATIME, NULL);
+    	// 6. Mount root partition
+    	//
+    	mount("/dev/sda3", "/mnt" , "ext4", MS_RELATIME, NULL);
+    	mount("/dev/sda5", "/home", "ext4", MS_RELATIME, NULL);
+    	mount("/dev/sda2", "/boot", "ext4", MS_RELATIME, NULL);
     
     // 7. Prepare Target Transition (Pivot Root Setup)
     //
@@ -96,9 +96,10 @@ int main(void) {
 
     // 10. Create System Symlinks
     //
-    symlink("/usr/lib", "/lib64");
-    symlink("/usr/lib", "/lib");
-    symlink("/usr/bin", "/bin");
+    symlink("/usr/lib64", "/lib64");
+    symlink("/usr/lib"  , "/lib");
+    symlink("/usr/bin"  , "/bin");
+    symlink("/usr/bin"  , "/sbin");
 
     // 15. System Clock (RTC) - Using BIOS time as-is
     // 
@@ -157,7 +158,7 @@ int main(void) {
     }
     if(fgets(serial, sizeof(serial), serial_file)!= NULL){
     	serial[strcspn(serial, "\n")] = '\0';
-    };
+    }
     fclose(make_file);
     fclose(model_file);
     fclose(serial_file);
@@ -181,8 +182,8 @@ int main(void) {
     //
     char *root_environment[] = {
         "PATH=/bin:/usr/bin",
-        "LIBRARY_PATH=/lib:/usr/lib",
-        "LD_LIBRARY_PATH=/lib:/usr/lib",
+        "LIBRARY_PATH=/lib:/usr/lib:/usr/lib64",
+        "LD_LIBRARY_PATH=/lib:/usr/lib:/usr/lib64",
         "HOME=/root",
         "XAUTHORITY=/root/.Xauthority",
         "USER=root",
@@ -254,9 +255,9 @@ int main(void) {
     
     // launch system program binaries
     //
+    
     pid_t udevd_pid=fork();
     if(udevd_pid==0){
-  	sleep(1);
     	char *udevd_array[] = {"systemd-udevd", "--daemon", NULL};
     	printf("systemd-udevd --daemon\n");
 	execve("/usr/lib/systemd/systemd-udevd", udevd_array, root_environment);
@@ -267,7 +268,6 @@ int main(void) {
 
     pid_t udevadm_control_pid=fork();
     if(udevadm_control_pid==0){
-  	sleep(1);
     	char *udevadm_control_array[] = {"udevadm", "control", "--reload-rules", NULL};
     	printf("udevadm control --reload-rules\n");
 	execve("/usr/bin/udevadm", udevadm_control_array, root_environment);
@@ -278,7 +278,6 @@ int main(void) {
     
     pid_t udevadm_trigger_pid=fork();
     if(udevadm_trigger_pid==0){
-  	sleep(1);
     	char *udevadm_trigger_array[] = {"udevadm", "trigger", NULL};
     	printf("udevadm trigger\n");
     	execve("/usr/bin/udevadm", udevadm_trigger_array, root_environment);
@@ -289,7 +288,6 @@ int main(void) {
     
     pid_t udevadm_settle_pid=fork();
     if(udevadm_settle_pid==0){
-  	sleep(1);
     	char *udevadm_settle_array[] = {"udevadm", "settle",  NULL};
     	printf("udevadm settle\n");
     	execve("/usr/bin/udevadm", udevadm_settle_array, root_environment);
@@ -300,7 +298,6 @@ int main(void) {
     
     pid_t dbus_system_pid=fork();
     if(dbus_system_pid==0){
-  	sleep(1);
    	char *dbus_system_array[] = {"dbus-daemon", "--system",NULL};
     	printf("dbus-daemon --system\n");
 	execve("/usr/bin/dbus-daemon", dbus_system_array, root_environment);
@@ -310,17 +307,15 @@ int main(void) {
 
     pid_t NetworkManager_pid=fork();
     if(NetworkManager_pid==0){
-  	sleep(1);
 	char *NetworkManager_array[] = {"NetworkManager", NULL};
 	printf("NetworkManager\n");
-    	execve("/usr/bin/NetworkManager", NetworkManager_array, root_environment);
+	execve("/usr/bin/NetworkManager", NetworkManager_array, root_environment);
 	exit(0);
    }else{
    	waitpid(NetworkManager_pid,NULL,0);
    }
 	
     if(fork()==0){
-  	sleep(1);
         char *bluetoothd_array[] = {"bluetoothd", NULL};
 	printf("bluetoothd\n");
         execve("/usr/libexec/bluetooth/bluetoothd", bluetoothd_array, root_environment);
@@ -328,15 +323,13 @@ int main(void) {
     }
 
     if(fork()==0){
-  	sleep(1);
     	char *crond_array[] = {"crond", "-Pp", NULL};
-	printf("crond -Pp\n");
+    	system("bash &");
     	execve("/usr/bin/crond", crond_array, root_environment);
 	exit(0);
     }
 
     if(fork()==0){
-  	sleep(1);
     	char *avahi_array[] = {"avahi-daemon", NULL};
     	printf("avahi-daemon\n");
 	execve("/usr/bin/avahi-daemon",avahi_array, root_environment);
@@ -344,7 +337,6 @@ int main(void) {
     }
     
     if(fork()==0){
-  	sleep(1);
     	char *cupsd_array[] = {"cupsd", NULL};
     	printf("cupsd\n");
 	execve("/usr/bin/cupsd",cupsd_array, root_environment);
@@ -360,10 +352,22 @@ int main(void) {
     system("/usr/bin/setfacl -m u:user:rw /dev/uinput*");
     system("/usr/bin/setfacl -m u:user:rw /dev/dma_heap/*");
     system("/usr/bin/setfacl -m u:user:rw /dev/sr*");
+    system("/usr/bin/setfacl -m u:user:rw /dev/cdrom");
     system("/usr/bin/setfacl -m u:user:rw /dev/tty0");
     system("/usr/bin/setfacl -m u:user:rw /dev/tty1");
     system("/usr/bin/setfacl -m u:user:rw /dev/tty2");
-    sleep(1);
+    
+    if(fork()==0){
+  	sleep(1);
+	char *Xorg_array[] = {"Xorg", ":0", "-config", "/etc/X11/xorg.conf", NULL};
+	//char *Xorg_array[] = {"Xorg", ":0", NULL};
+        printf("Xorg :0\n");
+	execve("/usr/bin/Xorg", Xorg_array, root_environment);
+	exit(0);
+    }else{
+    	sleep(5);
+    }
+    
     // prepare usre runtime directories
     //
     mkdir("/run/user", 0755);
@@ -372,19 +376,20 @@ int main(void) {
    
     // 19. fork PID #1 to reap zombie proccesses
     //
-	if(fork()!=0){
-        	while(1){
-            		waitpid(-1, NULL, WNOHANG);
-	    		sleep(2);
-		}
-	}
-
+    if(fork()!=0){
+    	while (1) {
+           sleep(2);
+           waitpid(-1, NULL, WNOHANG);
+    	}
+    }
+    
+    
     // set user environental variables
     // 
     char *user_environment[] = {
         "PATH=/bin:/usr/bin",
-        "LIBRARY_PATH=/lib:/usr/lib",
-        "LD_LIBRARY_PATH=/lib:/usr/lib",
+        "LIBRARY_PATH=/lib:/usr/lib:/usr/lib64",
+        "LD_LIBRARY_PATH=/lib:/usr/lib:/usr/lib64",
         "HOME=/home/user",
         "USER=user",
         "LOGNAME=user",
@@ -403,10 +408,10 @@ int main(void) {
         "QT_IM_MODULE=ibus",
         "XMODIFIERS=@im=ibus",
         "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/dbus",
-        environment_hostname,
+        "NO_AT_BRIDGE=1",
+	environment_hostname,
         NULL
     };
-    	sleep(1);
     
     // Apply Enviromental variables for user 
     //
@@ -424,30 +429,30 @@ int main(void) {
             free(env_copy);
         }
     }
-    	sleep(1);
     
     // start user session
     //
-    setgid(1000);
-    setuid(1000);
+    setresgid(1000,1000,1000);
+    setresuid(1000,1000,1000);
     setsid();
-    chdir("/home/user");
     
     if(fork()==0){
-  	sleep(1);
-    		system("dbus-daemon --session");
-    }
-
-    if(fork()==0){
-  	sleep(1);
-        char *Xorg_array[] = {"Xorg", ":0", NULL};
-        printf("Xorg :0\n");
-	execve("/usr/bin/Xorg", Xorg_array, user_environment);
-	exit(0);
-    }else{
-        sleep(1);
+	while(1){
+    		system("bash -im");
+	}
     }	
     
+    pid_t dbus_session_pid=fork();
+    if(dbus_session_pid==0){
+   	char *dbus_session_array[] = {"dbus-daemon", "--session", "--fork", NULL};
+    	printf("dbus-daemon --session --fork\n");
+	execve("/usr/bin/dbus-daemon", dbus_session_array, user_environment);
+    }else{
+	waitpid(dbus_session_pid,NULL,0);
+    }
+    
+    // prepare usre runtime directories
+
     if(fork()==0){
   	sleep(1);
         char *xcompmgr_array[] = {"xcompmgr", NULL};
@@ -455,36 +460,10 @@ int main(void) {
 	execve("/usr/bin/xcompmgr",xcompmgr_array, user_environment);
 	exit(0);
     }else{
-    	sleep(1);
+	sleep(1);
     }
-
     
-    if(fork()==0){	
-  	sleep(1);
-        char *pipewire_array[] = {"pipewire", NULL};
-        printf("pipewire\n");
-	execve("/usr/bin/pipewire", pipewire_array, user_environment);
-	exit(0);
-    }
-
     if(fork()==0){
-  	sleep(1);
-        char *pipewire_pulse_array[] = {"pipewire-pulse", NULL};
-        printf("pipewire-pulse\n");
-	execve("/usr/bin/pipewire-pulse", pipewire_pulse_array, user_environment);
-	exit(0);
-    }
-
-    if(fork()==0){
-  	sleep(1);
-        char *wireplumber_array[] = {"wireplumber", NULL};
-        printf("wireplumber\n");
-	execve("/usr/bin/wireplumber", wireplumber_array, user_environment);
-	exit(0);
-    }
-
-    if(fork()==0){
-  	sleep(1);
         char *feh_array[] = {"feh", "--randomize", "--bg-max", "/home/user/Pictures/Wallpapers", NULL};
         printf("feh --randomize --bg-max /home/user/Pictures/Wallpapers\n");
 	execve("/usr/bin/feh", feh_array, user_environment);
@@ -492,7 +471,6 @@ int main(void) {
     }
     
     if(fork()==0){
-  	sleep(1);
         char *tint2_array[] = {"tint2", NULL};
         printf("tint2\n");
 	execve("/usr/bin/tint2", tint2_array, user_environment);
@@ -500,59 +478,82 @@ int main(void) {
     }
     
     if(fork()==0){
-  	sleep(1);
 	char *nm_applet_array[] = {"dbus-run-session", "--", "nm-applet", NULL};
-    	printf("dbus-run-session -- nm-applet");
+    	printf("dbus-run-session -- nm-applet\n");
 	execve("/usr/bin/dbus-run-session", nm_applet_array, user_environment);
 	exit(0);
     }
     
     if(fork()==0){
-  	sleep(1);
         char *blueman_applet_array[] = {"dbus-run-session", "--", "blueman-applet", NULL};
-	printf("dbus-run-session -- blueman-applet");
+	printf("dbus-run-session -- blueman-applet\n");
 	execve("/usr/bin/dbus-run-session", blueman_applet_array, user_environment);
 	exit(0);
     }
 
     if(fork()==0){
-  	sleep(1);
         char *xscreensaver_array[] = {"xscreensaver", "--no-splash", NULL};
-        printf("xscreensaver --no-splash");
+        printf("xscreensaver --no-splash\n");
 	execve("/usr/bin/xscreensaver", xscreensaver_array, user_environment);
 	exit(0);
     }
     
     if(fork()==0){
-  	sleep(1);
+    	char *ibus_array[]={"ibus-daemon", "-dxr", NULL};
+	printf("ibus-daemon -d\n");
+	execve("/usr/bin/ibus-daemon", ibus_array, user_environment);
+	exit(0);
+    }
+
+    if(fork()==0){
         char *flameshot_array[] = {"dbus-run-session", "--", "flameshot", NULL};
-    	printf("dbus-run-session -- flameshot");
+    	printf("dbus-run-session -- flameshot\n");
 	execve("/usr/bin/dbus-run-session", flameshot_array, user_environment);
 	exit(0);
     }
     
     if(fork()==0){
-  	sleep(1);
         char *thunar_array[] = {"/usr/bin/dbus-run-session", "--", "thunar","--daemon", NULL};
-    	printf("dbus-run-session -- thunar --daemon");
+    	printf("dbus-run-session -- thunar --daemon\n");
 	execve("/usr/bin/dbus-run-session", thunar_array, user_environment);
 	exit(0);
     }
     
-    
-    if(fork()==0){
-  	sleep(1);
-        char *ibus_array[] = {"/usr/bin/ibus-daemon", "-xd", NULL};
-        printf("ibus-daemon -xd");
-	execve("/usr/bin/ibus-daemon",ibus_array, user_environment);
+    if(fork()==0){	
+        char *pipewire_array[] = {"pipewire", NULL};
+        printf("pipewire\n");
+	execve("/usr/bin/pipewire", pipewire_array, user_environment);
 	exit(0);
+    }else{
+    	sleep(1);
+    }
+
+    if(fork()==0){
+    	sleep(1);
+	char *pipewire_pulse_array[] = {"pipewire-pulse", NULL};
+        printf("pipewire-pulse\n");
+	execve("/usr/bin/pipewire-pulse", pipewire_pulse_array, user_environment);
+	exit(0);
+    }else{
+    	sleep(1);
+    }
+
+    if(fork()==0){
+    	sleep(1);
+        char *wireplumber_array[] = {"wireplumber", NULL};
+        printf("wireplumber\n");
+	execve("/usr/bin/wireplumber", wireplumber_array, user_environment);
+	exit(0);
+    }else{
+    	sleep(1);
     }
     
     pid_t mpv_pid=fork();
     if(mpv_pid==0){
         wait(NULL);
+    	sleep(1);
 	char *mpv_array[] = {"/usr/bin/mpv", "/home/user/Music/Windows_95_Startup-Microsoft.wav", NULL};
-    	printf("mpv /home/user/Music/Windows_95_Startup-Microsoft.wav");
+    	printf("mpv /home/user/Music/Windows_95_Startup-Microsoft.wav\n");
 	execve("/usr/bin/mpv",mpv_array, user_environment);
 	exit(0);
     }else{
@@ -565,11 +566,11 @@ int main(void) {
 	execve("/usr/bin/openbox",openbox_array, user_environment);
 	exit(0);
     }
-
-
-    // Continuous local session loop keeping the graphics pipeline running smoothly
-    while (1) {
-        sleep(2);
-        waitpid(-1, NULL, WNOHANG);
+    
+    if(fork()==0){
+    	while (1) {
+        	sleep(2);
+        	waitpid(-1, NULL, WNOHANG);
+    	}
     }
 }
